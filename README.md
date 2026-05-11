@@ -50,6 +50,50 @@ HF_ENDPOINT=https://hf-mirror.com hf download OpenMOSS-Team/MOSS-Audio-Tokenizer
 
 若镜像体积仍只有约 **450–500MB**，几乎都是 **`docker build` 上下文里仍是 LFS 指针**（未拉实体）。请在仓库根执行 `git lfs pull`，或用 `head -1 models/MOSS-TTS-Nano-100M-ONNX/moss_tts_global_shared.data` 自查：若出现 `version https://git-lfs.github.com/spec/v1` 即未拉全。云厂商「仅 Dockerfile 构建」若默认 `git clone` 不带 LFS，需在构建步骤显式启用 LFS 或改用含实体 `models/` 的上下文。
 
+### Docker 构建与运行示例
+
+在仓库根目录构建（`linux/amd64`，与 CI 一致；Apple Silicon 本机可先 `docker build --platform linux/amd64 …`）：
+
+```bash
+docker build -t moss-tts-nano:onnx .
+```
+
+前台运行并将容器内 **18083** 映射到本机（镜像默认监听 `0.0.0.0:18083`，无需额外挂载 `models`）：
+
+```bash
+docker run --rm -p 18083:18083 moss-tts-nano:onnx
+```
+
+后台常驻并命名容器：
+
+```bash
+docker run -d --name moss-tts -p 18083:18083 moss-tts-nano:onnx
+```
+
+覆盖默认线程数等启动参数时，在镜像名后写明完整命令（会替换镜像内的 `CMD`）：
+
+```bash
+docker run --rm -p 18083:18083 moss-tts-nano:onnx \
+  moss_tts_onnx_server --model-dir /models --host 0.0.0.0 --port 18083 --threads 8
+```
+
+健康检查与合成 WAV（宿主机执行）：
+
+```bash
+curl -sS http://127.0.0.1:18083/health
+curl -sS -X POST 'http://127.0.0.1:18083/tts' \
+  --data-urlencode 'text=欢迎使用 MOSS-TTS-Nano ONNX 服务。' \
+  --data-urlencode 'voice=Junhao' \
+  -o out.wav
+```
+
+调试时如需用宿主机上的 `models/` 覆盖镜像内权重，可加只读挂载（一般不必）：
+
+```bash
+docker run --rm -p 18083:18083 -v "$(pwd)/models:/models:ro" moss-tts-nano:onnx \
+  moss_tts_onnx_server --model-dir /models --host 0.0.0.0 --port 18083 --threads 4
+```
+
 ## 依赖
 
 - **CMake** ≥ 3.16，**C++17**
