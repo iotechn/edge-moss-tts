@@ -40,6 +40,12 @@ HF_ENDPOINT=https://hf-mirror.com hf download OpenMOSS-Team/MOSS-TTS-Nano-100M-O
 HF_ENDPOINT=https://hf-mirror.com hf download OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano-ONNX --local-dir models/MOSS-Audio-Tokenizer-Nano-ONNX
 ```
 
+## Docker 镜像（FaaS / 无外挂存储）
+
+`Dockerfile` 在构建阶段将 **`models/` 完整 `COPY` 到镜像内 `/models`**，默认 `CMD` 使用 `--model-dir /models`。服务进程**不会在运行时从网络拉取权重**，因此 **无需挂载 PVC、对象存储或宿主机目录**，适合希望 **冷启动尽量快** 的 FaaS（仅剩容器拉镜像与本机读盘加载 ONNX 的开销）。
+
+合并进 `main` 后由 GitHub Actions 在构建镜像前下载模型；本地执行 `docker build` 前请先按上文准备好 **`models/` 且为实体文件**（`du -sh models` 约 700MB+，`find models -type l` 应为空），否则镜像会缺权重。
+
 ## 依赖
 
 - **CMake** ≥ 3.16，**C++17**

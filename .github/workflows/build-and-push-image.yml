@@ -8,8 +8,8 @@ on:
 env:
   REGISTRY: sgccr.ccs.tencentyun.com
   IMAGE_NAME: exm-app/${{ github.event.repository.name }}
-  # 模型有更新时可 bump，使缓存失效并重新拉取
-  MODELS_CACHE_KEY: v1
+  # 模型有更新时可 bump，使缓存失效并重新拉取（v2：弃用「仅有 HF 缓存 symlink」的旧缓存，便于 Docker COPY）
+  MODELS_CACHE_KEY: v2
 
 jobs:
   build-and-push-image:
@@ -37,8 +37,10 @@ jobs:
         if: steps.models-cache.outputs.cache-hit != 'true'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_HUB_DISABLE_SYMLINKS: "1"
         run: |
-          pip install --upgrade "huggingface_hub>=0.23.0"
+          # 1.x 起 local_dir 下载为实体文件；旧版 0.2x 常把大文件链到 ~/.cache，Docker 上下文带不进镜像
+          pip install --upgrade "huggingface_hub>=1.0.0"
           python << 'PY'
           import os
           from huggingface_hub import snapshot_download
@@ -51,6 +53,23 @@ jobs:
           for repo_id, dest in repos:
               snapshot_download(repo_id=repo_id, local_dir=dest, token=token)
           PY
+
+      - name: Verify models are copied into image context (real files)
+        run: |
+          set -euo pipefail
+          sym=$(find models -type l | wc -l)
+          if [ "$sym" -ne 0 ]; then
+            echo "::error::models/ 含 $sym 个符号链接；Docker 上下文无法带上 HF 缓存目标，镜像会缺权重。"
+            find models -type l -ls | head -50
+            exit 1
+          fi
+          mb=$(du -sm models | cut -f1)
+          if [ "$mb" -lt 600 ]; then
+            echo "::error::models/ 仅 ${mb}MB，完整 ONNX 通常约 700MB+，请检查下载是否完整。"
+            du -sh models || true
+            exit 1
+          fi
+          du -sh models
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

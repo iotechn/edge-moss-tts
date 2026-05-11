@@ -1,2 +1,1 @@
-# 权重体积大，由 CI 从 Hugging Face 拉取；本地开发可自行下载到该目录
-models/
+# 模型权重已纳入仓库（Git LFS；各模型子目录内 .gitattributes 已声明 *.onnx / *.data / *.model 等）
