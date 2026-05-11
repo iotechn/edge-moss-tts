@@ -46,6 +46,8 @@ HF_ENDPOINT=https://hf-mirror.com hf download OpenMOSS-Team/MOSS-Audio-Tokenizer
 
 权重已随仓库通过 **Git LFS** 提供；克隆后请安装 [Git LFS](https://git-lfs.com/) 并执行 `git lfs pull`（或克隆时勿设置 `GIT_LFS_SKIP_SMUDGE`）。本地 `docker build` 前确认 **`du -sh models` 约 700MB+** 且 **`find models -type l` 为空**。CI 在 `actions/checkout` 已启用 `lfs: true`，构建镜像前会校验体积。
 
+若镜像体积仍只有约 **450–500MB**，几乎都是 **`docker build` 上下文里仍是 LFS 指针**（未拉实体）。请在仓库根执行 `git lfs pull`，或用 `head -1 models/MOSS-TTS-Nano-100M-ONNX/moss_tts_global_shared.data` 自查：若出现 `version https://git-lfs.github.com/spec/v1` 即未拉全。云厂商「仅 Dockerfile 构建」若默认 `git clone` 不带 LFS，需在构建步骤显式启用 LFS 或改用含实体 `models/` 的上下文。
+
 ## 依赖
 
 - **CMake** ≥ 3.16，**C++17**
