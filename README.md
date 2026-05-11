@@ -2,7 +2,7 @@
 
 本仓库提供基于 **ONNX Runtime C++ API** 的 **MOSS-TTS-Nano** 推理与极简 HTTP 接口，对应上游官方 ONNX 部署说明：[OpenMOSS/MOSS-TTS-Nano](https://github.com/OpenMOSS/MOSS-TTS-Nano)（`infer_onnx.py` / `app_onnx.py` 使用的同一套权重与 `browser_poc_manifest.json`）。
 
-## 可行性结论（简要）
+## 可行性结论（简要） 
 
 - **可以**：官方已发布 **MOSS-TTS-Nano-100M-ONNX** 与 **MOSS-Audio-Tokenizer-Nano-ONNX**，推理阶段不依赖 PyTorch，ONNX Runtime（含 C++）可直接加载 `.onnx` 与外部 `.data`。
 - **本实现默认路径**：与上游默认一致，`manifest["generation_defaults"]["sample_mode"] == "fixed"` 时使用 **`moss_tts_local_fixed_sampled_frame.onnx`** 逐帧生成音频 token，再配合 **`moss_tts_decode_step.onnx`** 更新全局隐藏状态与 KV；解码侧使用 **`moss_audio_tokenizer_decode_full.onnx`** 一次性还原波形。
