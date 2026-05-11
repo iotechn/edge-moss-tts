@@ -2,4 +2,4 @@
 .github
 **/.DS_Store
 **/cpp/build
-# 不把 models 排除：CI 在构建前从 HF 下载到 models/ 再 docker build 打进镜像
+# 不把 models 排除（模型在仓库 Git LFS；构建前须为实体文件而非指针）

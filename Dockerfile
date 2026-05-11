@@ -70,6 +70,14 @@ COPY --from=builder /src/cpp/build/moss_tts_onnx_server /usr/local/bin/moss_tts_
 # 完整打入镜像（无外挂存储）；布局与 README 中 models/ 一致
 COPY models /models
 
+# 若构建上下文里仍是 Git LFS 指针（未 git lfs pull），此处 du 仅数 MB，镜像约 460MB 且不可用
+RUN set -eux; \
+  du -sh /models; \
+  mb="$(du -sm /models | cut -f1)"; \
+  test "$mb" -ge 600 || { echo "ERROR: /models 仅 ${mb}MB，应为 ~700MB+。请在仓库根执行 git lfs install && git lfs pull 后再 docker build；CI 须 checkout lfs: true。" >&2; exit 1; }; \
+  sym="$(find /models -type l | wc -l)"; \
+  test "$sym" -eq 0 || { echo "ERROR: /models 含 ${sym} 个符号链接" >&2; exit 1; }
+
 RUN ldconfig
 
 ENV MOSS_TTS_MODEL_DIR=/models
