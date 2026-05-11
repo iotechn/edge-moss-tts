@@ -62,13 +62,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsentencepiece0 \
   && rm -rf /var/lib/apt/lists/*
 
+# 完整打入镜像（无外挂存储）；布局与 README 中 models/ 一致
+COPY models /models
+
 # ONNX Runtime CPU 共需要主库与 providers_shared
 COPY --from=builder /opt/onnxruntime/lib/libonnxruntime.so* /usr/local/lib/
 COPY --from=builder /opt/onnxruntime/lib/libonnxruntime_providers_shared.so* /usr/local/lib/
 COPY --from=builder /src/cpp/build/moss_tts_onnx_server /usr/local/bin/moss_tts_onnx_server
 
-# 完整打入镜像（无外挂存储）；布局与 README 中 models/ 一致
-COPY models /models
 
 # 若构建上下文里仍是 Git LFS 指针（未 git lfs pull），此处 du 仅数 MB，镜像约 460MB 且不可用
 RUN set -eux; \
