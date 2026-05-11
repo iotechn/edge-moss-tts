@@ -1,0 +1,9 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/w.wei/develop/workspace/py/moss-tts-nano/cpp/build/cmake_install.cmake",
+		"/Users/w.wei/develop/workspace/py/moss-tts-nano/cpp/build/_deps/nlohmann_json-build/cmake_install.cmake",
+		"/Users/w.wei/develop/workspace/py/moss-tts-nano/cpp/build/_deps/cpphttplib-build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

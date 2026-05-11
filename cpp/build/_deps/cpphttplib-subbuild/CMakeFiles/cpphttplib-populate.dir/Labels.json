@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/Users/w.wei/develop/workspace/py/moss-tts-nano/cpp/build/_deps/cpphttplib-subbuild/CMakeFiles/cpphttplib-populate"
+		},
+		{
+			"file" : "/Users/w.wei/develop/workspace/py/moss-tts-nano/cpp/build/_deps/cpphttplib-subbuild/CMakeFiles/cpphttplib-populate.rule"
+		},
+		{
+			"file" : "/Users/w.wei/develop/workspace/py/moss-tts-nano/cpp/build/_deps/cpphttplib-subbuild/CMakeFiles/cpphttplib-populate-complete.rule"
+		},
+		{
+			"file" : "/Users/w.wei/develop/workspace/py/moss-tts-nano/cpp/build/_deps/cpphttplib-subbuild/cpphttplib-populate-prefix/src/cpphttplib-populate-stamp/cpphttplib-populate-build.rule"
+		},
+		{
+			"file" : "/Users/w.wei/develop/workspace/py/moss-tts-nano/cpp/build/_deps/cpphttplib-subbuild/cpphttplib-populate-prefix/src/cpphttplib-populate-stamp/cpphttplib-populate-configure.rule"
+		},
+		{
+			"file" : "/Users/w.wei/develop/workspace/py/moss-tts-nano/cpp/build/_deps/cpphttplib-subbuild/cpphttplib-populate-prefix/src/cpphttplib-populate-stamp/cpphttplib-populate-download.rule"
+		},
+		{
+			"file" : "/Users/w.wei/develop/workspace/py/moss-tts-nano/cpp/build/_deps/cpphttplib-subbuild/cpphttplib-populate-prefix/src/cpphttplib-populate-stamp/cpphttplib-populate-install.rule"
+		},
+		{
+			"file" : "/Users/w.wei/develop/workspace/py/moss-tts-nano/cpp/build/_deps/cpphttplib-subbuild/cpphttplib-populate-prefix/src/cpphttplib-populate-stamp/cpphttplib-populate-mkdir.rule"
+		},
+		{
+			"file" : "/Users/w.wei/develop/workspace/py/moss-tts-nano/cpp/build/_deps/cpphttplib-subbuild/cpphttplib-populate-prefix/src/cpphttplib-populate-stamp/cpphttplib-populate-patch.rule"
+		},
+		{
+			"file" : "/Users/w.wei/develop/workspace/py/moss-tts-nano/cpp/build/_deps/cpphttplib-subbuild/cpphttplib-populate-prefix/src/cpphttplib-populate-stamp/cpphttplib-populate-test.rule"
+		},
+		{
+			"file" : "/Users/w.wei/develop/workspace/py/moss-tts-nano/cpp/build/_deps/cpphttplib-subbuild/cpphttplib-populate-prefix/src/cpphttplib-populate-stamp/cpphttplib-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"cpphttplib-populate"
+		],
+		"name" : "cpphttplib-populate"
+	}
+}

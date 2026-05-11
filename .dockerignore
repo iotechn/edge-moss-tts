@@ -1,0 +1,5 @@
+.git
+.github
+**/.DS_Store
+**/cpp/build
+# 不把 models 排除：CI 在构建前从 HF 下载到 models/ 再 docker build 打进镜像

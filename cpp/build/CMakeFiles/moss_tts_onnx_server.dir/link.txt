@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/moss_tts_onnx_server.dir/src/main.cpp.o CMakeFiles/moss_tts_onnx_server.dir/src/engine.cpp.o -o moss_tts_onnx_server  /opt/homebrew/lib/libsentencepiece.dylib -framework Foundation /opt/homebrew/Cellar/onnxruntime/1.26.0/lib/libonnxruntime.dylib

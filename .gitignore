@@ -1,0 +1,2 @@
+# 权重体积大，由 CI 从 Hugging Face 拉取；本地开发可自行下载到该目录
+models/
