@@ -57,6 +57,8 @@ jobs:
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
+      # BuildKit「CACHED」= 复用未改动的层（含 GHA cache）。只要 models 文件变过，COPY models 会重建；
+      # Dockerfile 里对 /models 的 du 校验也会真实执行（不会用旧校验结果顶替）。
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
@@ -69,3 +71,10 @@ jobs:
           platforms: linux/amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # 仓库控制台常见「几百 MB」多为压缩/展示口径；镜像内 /models 以构建日志 #18 的 du 为准。
+      - name: Inspect pushed manifest (压缩层大小)
+        run: |
+          set -eux
+          TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          docker buildx imagetools inspect "$TAG"
