@@ -44,7 +44,7 @@ HF_ENDPOINT=https://hf-mirror.com hf download OpenMOSS-Team/MOSS-Audio-Tokenizer
 
 `Dockerfile` 在构建阶段将 **`models/` 完整 `COPY` 到镜像内 `/models`**，默认 `CMD` 使用 `--model-dir /models`。服务进程**不会在运行时从网络拉取权重**，因此 **无需挂载 PVC、对象存储或宿主机目录**，适合希望 **冷启动尽量快** 的 FaaS（仅剩容器拉镜像与本机读盘加载 ONNX 的开销）。
 
-合并进 `main` 后由 GitHub Actions 在构建镜像前下载模型；本地执行 `docker build` 前请先按上文准备好 **`models/` 且为实体文件**（`du -sh models` 约 700MB+，`find models -type l` 应为空），否则镜像会缺权重。
+权重已随仓库通过 **Git LFS** 提供；克隆后请安装 [Git LFS](https://git-lfs.com/) 并执行 `git lfs pull`（或克隆时勿设置 `GIT_LFS_SKIP_SMUDGE`）。本地 `docker build` 前确认 **`du -sh models` 约 700MB+** 且 **`find models -type l` 为空**。CI 在 `actions/checkout` 已启用 `lfs: true`，构建镜像前会校验体积。
 
 ## 依赖
 

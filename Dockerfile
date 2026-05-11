@@ -1,8 +1,8 @@
 # MOSS-TTS-Nano ONNX HTTP 服务 — linux/amd64（与 GitHub Actions platforms 一致）
 #
 # FaaS / 冷启动：权重在构建期 COPY 进 /models，进程只读本地 ONNX，不做运行时下载；默认无需 PVC、无需挂载对象存储。
-# CI 在合并构建前把实体模型放进构建上下文的 models/；本地 docker build 前也需自备 models/（勿用指向 HF 缓存的 symlink）。
-# CI 已 pin huggingface_hub>=1 并校验体积与无 symlink，避免「镜像极小但缺权重」的假镜像。
+# 模型在仓库内 models/（Git LFS）；构建上下文需为实体文件。CI checkout 启用 LFS 并校验体积。
+# 本地 docker build 前请 git lfs pull；勿用指向 HF 缓存的 symlink 冒充 models。
 
 ARG ONNXRUNTIME_VERSION=1.19.2
 
