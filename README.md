@@ -44,7 +44,9 @@ HF_ENDPOINT=https://hf-mirror.com hf download OpenMOSS-Team/MOSS-Audio-Tokenizer
 
 `Dockerfile` 在构建阶段将 **`models/` 完整 `COPY` 到镜像内 `/models`**，默认 `CMD` 使用 `--model-dir /models`。服务进程**不会在运行时从网络拉取权重**，因此 **无需挂载 PVC、对象存储或宿主机目录**，适合希望 **冷启动尽量快** 的 FaaS（仅剩容器拉镜像与本机读盘加载 ONNX 的开销）。
 
-权重已随仓库通过 **Git LFS** 提供；克隆后请安装 [Git LFS](https://git-lfs.com/) 并执行 `git lfs pull`（或克隆时勿设置 `GIT_LFS_SKIP_SMUDGE`）。本地 `docker build` 前确认 **`du -sh models` 约 700MB+** 且 **`find models -type l` 为空**。CI 在 `actions/checkout` 已启用 `lfs: true`，构建镜像前会校验体积。
+**GitHub Actions**：在 **`ubuntu-latest` Runner** 上 `actions/checkout`（`lfs: true`）并执行 **`git lfs pull`**，随后在流水线内 `docker build`——**不使用你的个人电脑上的 `models/`**。合并进 `main` 触发的构建镜像 job 与本地无关。
+
+**本地**镜像调试：请安装 [Git LFS](https://git-lfs.com/) 并 `git lfs pull`，确认 **`du -sh models` 约 700MB+** 且 **`find models -type l` 为空** 后再 `docker build`。
 
 若镜像体积仍只有约 **450–500MB**，几乎都是 **`docker build` 上下文里仍是 LFS 指针**（未拉实体）。请在仓库根执行 `git lfs pull`，或用 `head -1 models/MOSS-TTS-Nano-100M-ONNX/moss_tts_global_shared.data` 自查：若出现 `version https://git-lfs.github.com/spec/v1` 即未拉全。云厂商「仅 Dockerfile 构建」若默认 `git clone` 不带 LFS，需在构建步骤显式启用 LFS 或改用含实体 `models/` 的上下文。
 

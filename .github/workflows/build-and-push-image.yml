@@ -16,10 +16,19 @@ jobs:
     timeout-minutes: 120
 
     steps:
+      # 模型在仓库 Git LFS：由 GitHub Runner 检出（非开发者本机）。切勿依赖 HF_TOKEN / 本地上传。
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           lfs: true
+
+      # checkout(lfs:true) 一般会拉全量；显式 pull 避免边缘情况下指针未展开
+      - name: Git LFS pull on runner
+        run: |
+          set -eux
+          git lfs version
+          git lfs install
+          git lfs pull
 
       - name: Verify models for Docker build (实体文件、体积)
         run: |
