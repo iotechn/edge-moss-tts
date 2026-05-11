@@ -1,5 +1,8 @@
 # MOSS-TTS-Nano ONNX HTTP 服务 — linux/amd64（与 GitHub Actions platforms 一致）
-# CI 在构建前下载 models/ 并 COPY 进镜像；本地单独构建时需先有 models/ 目录。
+#
+# FaaS / 冷启动：权重在构建期 COPY 进 /models，进程只读本地 ONNX，不做运行时下载；默认无需 PVC、无需挂载对象存储。
+# 模型在仓库内 models/（Git LFS）；构建上下文需为实体文件。CI checkout 启用 LFS 并校验体积。
+# 本地 docker build 前请 git lfs pull；勿用指向 HF 缓存的 symlink 冒充 models。
 
 ARG ONNXRUNTIME_VERSION=1.19.2
 
@@ -64,7 +67,7 @@ COPY --from=builder /opt/onnxruntime/lib/libonnxruntime.so* /usr/local/lib/
 COPY --from=builder /opt/onnxruntime/lib/libonnxruntime_providers_shared.so* /usr/local/lib/
 COPY --from=builder /src/cpp/build/moss_tts_onnx_server /usr/local/bin/moss_tts_onnx_server
 
-# 与 README 一致的目录布局（Action 中下载到构建上下文的 models/）
+# 完整打入镜像（无外挂存储）；布局与 README 中 models/ 一致
 COPY models /models
 
 RUN ldconfig
@@ -72,5 +75,5 @@ RUN ldconfig
 ENV MOSS_TTS_MODEL_DIR=/models
 EXPOSE 18083
 
-# 监听 0.0.0.0；模型已在镜像内 /models，也可用挂载覆盖该目录
+# 监听 0.0.0.0；默认使用镜像内 /models（FaaS 勿配 volume；仅调试时可挂载覆盖同路径）
 CMD ["moss_tts_onnx_server", "--model-dir", "/models", "--host", "0.0.0.0", "--port", "18083", "--threads", "4"]
