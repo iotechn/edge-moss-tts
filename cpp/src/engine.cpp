@@ -438,14 +438,58 @@ static int64_t read_scalar_int64_tensor(const Ort::Value& v) {
   throw std::runtime_error("unsupported scalar tensor type");
 }
 
-static Ort::Value vec_to_tensor_float(std::vector<float> data, std::vector<int64_t> shape) {
+// CreateTensor 不拷贝数据；返回的 Ort::Value 在 Run 完成前，data 指向的 vector 必须保持有效。
+static Ort::Value tensor_float_ref(const std::vector<float>& data, const std::vector<int64_t>& shape) {
   auto mem = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-  return Ort::Value::CreateTensor<float>(mem, data.data(), data.size(), shape.data(), shape.size());
+  return Ort::Value::CreateTensor<float>(mem, const_cast<float*>(data.data()), data.size(), shape.data(), shape.size());
 }
 
-static Ort::Value vec_to_tensor_int32(std::vector<int32_t> data, std::vector<int64_t> shape) {
+static Ort::Value tensor_int_mixed(std::vector<int32_t>& data32, std::vector<int64_t>& data64_out,
+                                   ONNXTensorElementDataType dt, const std::vector<int64_t>& shape) {
   auto mem = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-  return Ort::Value::CreateTensor<int32_t>(mem, data.data(), data.size(), shape.data(), shape.size());
+  if (dt == ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32) {
+    return Ort::Value::CreateTensor<int32_t>(mem, data32.data(), data32.size(), shape.data(), shape.size());
+  }
+  if (dt == ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64) {
+    data64_out.resize(data32.size());
+    for (size_t i = 0; i < data32.size(); ++i) {
+      data64_out[i] = static_cast<int64_t>(data32[i]);
+    }
+    return Ort::Value::CreateTensor<int64_t>(mem, data64_out.data(), data64_out.size(), shape.data(), shape.size());
+  }
+  throw std::runtime_error("ONNX int tensor: expected int32 or int64 element type");
+}
+
+static ONNXTensorElementDataType input_elem_type(Ort::Session& session, const char* target_name) {
+  Ort::AllocatorWithDefaultOptions allocator;
+  const size_t n = session.GetInputCount();
+  for (size_t i = 0; i < n; ++i) {
+    auto name = session.GetInputNameAllocated(i, allocator);
+    if (std::strcmp(name.get(), target_name) != 0) continue;
+    Ort::TypeInfo ti = session.GetInputTypeInfo(i);
+    return ti.GetTensorTypeAndShapeInfo().GetElementType();
+  }
+  throw std::runtime_error(std::string("missing ONNX input: ") + target_name);
+}
+
+static std::vector<int32_t> tensor_flat_to_int32_codes(const Ort::Value& v) {
+  auto info = v.GetTensorTypeAndShapeInfo();
+  auto shape = info.GetShape();
+  ONNXTensorElementDataType et = info.GetElementType();
+  size_t n = 1;
+  for (auto d : shape) n *= static_cast<size_t>(std::max<int64_t>(0, d));
+  std::vector<int32_t> out(n);
+  if (et == ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32) {
+    const int32_t* p = v.GetTensorData<int32_t>();
+    std::copy(p, p + n, out.begin());
+    return out;
+  }
+  if (et == ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64) {
+    const int64_t* p = v.GetTensorData<int64_t>();
+    for (size_t i = 0; i < n; ++i) out[i] = static_cast<int32_t>(p[i]);
+    return out;
+  }
+  throw std::runtime_error("codec tensor: expected int32 or int64 codes");
 }
 
 static Ort::Value tensor_from_float_buffer(const std::vector<float>& data, const std::vector<int64_t>& shape) {
@@ -576,6 +620,15 @@ struct MossTtsEngine::Impl {
 
   int thread_count_ = 4;
 
+  ONNXTensorElementDataType prefill_input_ids_type_ = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32;
+  ONNXTensorElementDataType prefill_attention_mask_type_ = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32;
+  ONNXTensorElementDataType decode_input_ids_type_ = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32;
+  ONNXTensorElementDataType decode_past_valid_lengths_type_ = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32;
+  ONNXTensorElementDataType fixed_repetition_mask_type_ = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32;
+  ONNXTensorElementDataType codec_input_lengths_type_ = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32;
+  ONNXTensorElementDataType codec_decode_audio_codes_type_ = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32;
+  ONNXTensorElementDataType codec_decode_audio_code_lengths_type_ = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32;
+
   Impl(std::filesystem::path model_dir, int threads) : thread_count_(std::max(1, threads)) {
     session_options_.SetIntraOpNumThreads(thread_count_);
     session_options_.SetInterOpNumThreads(1);
@@ -628,6 +681,15 @@ struct MossTtsEngine::Impl {
 
     codec_in_name_strings_ = {"waveform", "input_lengths"};
     for (const auto& s : codec_in_name_strings_) codec_in_names_.push_back(s.c_str());
+
+    prefill_input_ids_type_ = input_elem_type(*sess_prefill_, "input_ids");
+    prefill_attention_mask_type_ = input_elem_type(*sess_prefill_, "attention_mask");
+    decode_input_ids_type_ = input_elem_type(*sess_decode_, "input_ids");
+    decode_past_valid_lengths_type_ = input_elem_type(*sess_decode_, "past_valid_lengths");
+    fixed_repetition_mask_type_ = input_elem_type(*sess_local_fixed_, "repetition_seen_mask");
+    codec_input_lengths_type_ = input_elem_type(*sess_codec_encode_, "input_lengths");
+    codec_decode_audio_codes_type_ = input_elem_type(*sess_codec_decode_, "audio_codes");
+    codec_decode_audio_code_lengths_type_ = input_elem_type(*sess_codec_decode_, "audio_code_lengths");
   }
 
   std::vector<int> encode_text(const std::string& text) const {
@@ -767,17 +829,16 @@ struct MossTtsEngine::Impl {
                 nchw.begin() + static_cast<size_t>(c) * static_cast<size_t>(samples));
     }
     std::vector<int64_t> wf_shape = {1, wav.channels, samples};
-    auto wf_tensor = vec_to_tensor_float(std::move(nchw), wf_shape);
     std::vector<int32_t> lens = {samples};
-    auto len_tensor = vec_to_tensor_int32(std::move(lens), {1});
+    std::vector<int64_t> len_i64_scratch;
 
     std::vector<Ort::Value> inputs;
-    inputs.push_back(std::move(wf_tensor));
-    inputs.push_back(std::move(len_tensor));
+    inputs.push_back(tensor_float_ref(nchw, wf_shape));
+    inputs.push_back(tensor_int_mixed(lens, len_i64_scratch, codec_input_lengths_type_, {1}));
 
     auto outputs = session_run_all(*sess_codec_encode_, codec_in_names_.data(), inputs.data(), inputs.size());
-    std::vector<int32_t> audio_codes = tensor_to_vec_int32(outputs[0]);
-    std::vector<int32_t> code_lens = tensor_to_vec_int32(outputs[1]);
+    std::vector<int32_t> audio_codes = tensor_flat_to_int32_codes(outputs[0]);
+    std::vector<int32_t> code_lens = tensor_flat_to_int32_codes(outputs[1]);
     int code_len = code_lens.empty() ? 0 : code_lens[0];
     int num_q = codec_meta_["codec_config"]["num_quantizers"].get<int>();
     std::vector<std::vector<int>> frames;
@@ -883,12 +944,13 @@ struct MossTtsEngine::Impl {
         codes_flat[static_cast<size_t>(t) * static_cast<size_t>(num_q) + static_cast<size_t>(q)] = v;
       }
     }
-    auto codes_tensor = vec_to_tensor_int32(std::move(codes_flat), {1, T, num_q});
     std::vector<int32_t> lens = {T};
-    auto lens_tensor = vec_to_tensor_int32(std::move(lens), {1});
+    std::vector<int64_t> codes_i64_scratch;
+    std::vector<int64_t> lens_i64_scratch;
+
     std::vector<Ort::Value> ins;
-    ins.push_back(std::move(codes_tensor));
-    ins.push_back(std::move(lens_tensor));
+    ins.push_back(tensor_int_mixed(codes_flat, codes_i64_scratch, codec_decode_audio_codes_type_, {1, T, num_q}));
+    ins.push_back(tensor_int_mixed(lens, lens_i64_scratch, codec_decode_audio_code_lengths_type_, {1}));
     std::vector<const char*> names = {"audio_codes", "audio_code_lengths"};
     auto outs = session_run_all(*sess_codec_decode_, names.data(), ins.data(), ins.size());
     std::vector<float> audio = tensor_to_vec_float(outs[0]);
@@ -907,12 +969,13 @@ struct MossTtsEngine::Impl {
   std::pair<bool, std::vector<int>> run_local_fixed_frame(Ort::Session& sess, const std::vector<float>& global_hidden_row,
                                                           const std::vector<std::unordered_set<int>>& prev_sets,
                                                           int n_vq, int codebook_size,
+                                                          ONNXTensorElementDataType repetition_mask_elem_type,
                                                           std::mt19937_64& rng) const {
     int64_t hidden_size = static_cast<int64_t>(global_hidden_row.size());
-    auto gh_tensor = vec_to_tensor_float(global_hidden_row, {1, hidden_size});
+    auto gh_tensor = tensor_float_ref(global_hidden_row, {1, hidden_size});
 
     std::vector<int32_t> mask(static_cast<size_t>(1) * static_cast<size_t>(n_vq) * static_cast<size_t>(codebook_size),
-                          0);
+                              0);
     for (int c = 0; c < n_vq; ++c) {
       for (int tid : prev_sets[static_cast<size_t>(c)]) {
         if (tid >= 0 && tid < codebook_size) {
@@ -920,14 +983,16 @@ struct MossTtsEngine::Impl {
         }
       }
     }
-    auto mask_tensor = vec_to_tensor_int32(std::move(mask), {1, n_vq, codebook_size});
+    std::vector<int64_t> mask_i64_scratch;
+    auto mask_tensor =
+        tensor_int_mixed(mask, mask_i64_scratch, repetition_mask_elem_type, {1, n_vq, codebook_size});
 
     std::uniform_real_distribution<float> dist(0.f, 1.f);
     std::vector<float> au = {clamp01(dist(rng))};
-    auto au_tensor = vec_to_tensor_float(std::move(au), {1});
+    auto au_tensor = tensor_float_ref(au, {1});
     std::vector<float> aru(static_cast<size_t>(n_vq));
     for (int i = 0; i < n_vq; ++i) aru[static_cast<size_t>(i)] = clamp01(dist(rng));
-    auto aru_tensor = vec_to_tensor_float(std::move(aru), {1, n_vq});
+    auto aru_tensor = tensor_float_ref(aru, {1, n_vq});
 
     std::vector<Ort::Value> ins;
     ins.push_back(std::move(gh_tensor));
@@ -976,12 +1041,13 @@ struct MossTtsEngine::Impl {
     std::vector<int32_t> mask_flat(static_cast<size_t>(1) * static_cast<size_t>(seq_len));
     for (int t = 0; t < seq_len; ++t) mask_flat[static_cast<size_t>(t)] = mask_row[static_cast<size_t>(t)];
 
-    auto input_tensor = vec_to_tensor_int32(std::move(input_ids_flat), {1, seq_len, row_width});
-    auto mask_tensor = vec_to_tensor_int32(std::move(mask_flat), {1, seq_len});
+    std::vector<int64_t> input_ids_i64_scratch;
+    std::vector<int64_t> mask_flat_i64_scratch;
 
     std::vector<Ort::Value> prefill_inputs;
-    prefill_inputs.push_back(std::move(input_tensor));
-    prefill_inputs.push_back(std::move(mask_tensor));
+    prefill_inputs.push_back(
+        tensor_int_mixed(input_ids_flat, input_ids_i64_scratch, prefill_input_ids_type_, {1, seq_len, row_width}));
+    prefill_inputs.push_back(tensor_int_mixed(mask_flat, mask_flat_i64_scratch, prefill_attention_mask_type_, {1, seq_len}));
 
     auto prefill_outputs = session_run_all(*sess_prefill_, prefill_in_names_.data(), prefill_inputs.data(), 2);
 
@@ -1019,8 +1085,8 @@ struct MossTtsEngine::Impl {
 
     for (int step = 0; step < max_frames; ++step) {
       auto gh_row = as_row_global_hidden(global_hidden_vec);
-      auto [should_continue, frame] =
-          run_local_fixed_frame(*sess_local_fixed_, gh_row, prev_sets, n_vq, codebook_size, rng);
+      auto [should_continue, frame] = run_local_fixed_frame(*sess_local_fixed_, gh_row, prev_sets, n_vq, codebook_size,
+                                                            fixed_repetition_mask_type_, rng);
       if (!should_continue) break;
       for (int c = 0; c < n_vq; ++c) prev_sets[static_cast<size_t>(c)].insert(frame[static_cast<size_t>(c)]);
       generated.push_back(frame);
@@ -1032,11 +1098,13 @@ struct MossTtsEngine::Impl {
       std::vector<Ort::Value> decode_inputs;
       decode_inputs.reserve(decode_in_name_strings_.size());
 
-      auto next_ids_tensor = vec_to_tensor_int32(std::move(next_row), {1, 1, row_width});
-      decode_inputs.push_back(std::move(next_ids_tensor));
+      std::vector<int64_t> next_row_i64_scratch;
+      std::vector<int64_t> pvl_i64_scratch;
+      decode_inputs.push_back(
+          tensor_int_mixed(next_row, next_row_i64_scratch, decode_input_ids_type_, {1, 1, row_width}));
 
       std::vector<int32_t> pvl = {past_valid_length};
-      decode_inputs.push_back(vec_to_tensor_int32(std::move(pvl), {1}));
+      decode_inputs.push_back(tensor_int_mixed(pvl, pvl_i64_scratch, decode_past_valid_lengths_type_, {1}));
 
       std::vector<std::vector<float>> past_float_copies;
       past_float_copies.reserve(decode_in_name_strings_.size());
