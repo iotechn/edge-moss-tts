@@ -26,6 +26,7 @@ RUN set -eux; \
   curl -fsSL "https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}.tgz" \
     | tar xz -C /tmp; \
   mv "/tmp/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}" /opt/onnxruntime; \
+  mkdir -p /opt/onnxruntime/lib/pkgconfig; \
   { \
     echo "prefix=/opt/onnxruntime"; \
     echo "exec_prefix=\${prefix}"; \
